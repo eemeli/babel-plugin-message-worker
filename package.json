@@ -11,5 +11,13 @@
   "main": "src/index.js",
   "repository": "https://github.com/eemeli/babel-plugin-message-worker",
   "author": "Eemeli Aro <eemeli@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "test": "jest"
+  },
+  "devDependencies": {
+    "babel-core": "^6.26.0",
+    "jest": "^21.2.1",
+    "tmp": "0.0.33"
+  }
 }
