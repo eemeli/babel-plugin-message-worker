@@ -1,16 +1,33 @@
+const path = require('path')
+
+const resolveImportPath = (source, target) => (
+  path.isAbsolute(target) ? target :
+    (!source || target[0] !== '.') ? null :
+      path.resolve(path.dirname(source), target)
+)
+
 module.exports = function (babel) {
   return {
-    pre (state) {
+    pre ({ opts: { filename } }) {
+      this.filename = filename
       this.messages = {}
+      this.files = {}
     },
     visitor: {
-      ImportDeclaration (path, { opts: { include } }) {
-        const { source, specifiers } = path.node
-        if (!include) throw path.buildCodeFrameError('Required parameter: include')
-        if (!Array.isArray) include = [include]
+      ImportDeclaration ({ node: { source, specifiers } }, { opts: { include } }) {
+        const filepath = resolveImportPath(this.filename, source.value)
+        if (!filepath) return;
+        if (!include) throw new Error(
+          'Required parameter for babel-plugin-message-worker: ' +
+          '`include` should be a RegExp object, or an array of RegExp objects'
+        )
+        if (!Array.isArray(include)) include = [include]
         if (include.some(re => re.test(source.value))) {
           const node = specifiers.find(({ type }) => type === 'ImportDefaultSpecifier')
-          if (node) this.messages[node.local.name] = []
+          if (node) {
+            this.files[node.local.name] = filepath
+            this.messages[node.local.name] = []
+          }
         }
       },
       TaggedTemplateExpression ({ node: { tag: { name }, quasi: { quasis } } }) {
@@ -23,6 +40,7 @@ module.exports = function (babel) {
       }
     },
     post (state) {
+      console.log('files', this.files)
       console.log('messages', this.messages)
     }
   }
