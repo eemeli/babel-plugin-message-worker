@@ -2,8 +2,22 @@ const babel = require('babel-core')
 const fs = require('fs')
 const yaml = require('js-yaml')
 const tmp = require('tmp')
+const util = require('util')
 
 const plugin = require('../')
+
+const readFile = util.promisify(fs.readFile)
+const transformFile = util.promisify(babel.transformFile)
+const writeFile = util.promisify(fs.writeFile)
+
+const parse = (msgFilename, js) => {
+  const jsFile = tmp.fileSync({ postfix: '.js' })
+  const plugins = [[plugin, { include: /\.messages\.yaml$/ }]]
+  return writeFile(jsFile.fd, js)
+    .then(() => transformFile(jsFile.name, { plugins }))
+    .then(() => readFile(msgFilename, 'utf8'))
+    .then(data => yaml.safeLoad(data))
+}
 
 it('Requires `include` parameter', () => {
   const example = `import './x'; var foo = 1`
@@ -13,42 +27,18 @@ it('Requires `include` parameter', () => {
   ] })).not.toThrow()
 })
 
-it('Parses bare string', (done) => {
+it('Parses bare string', () => {
   const msgFilename = tmp.tmpNameSync({ postfix: '.messages.yaml' })
-  const jsFile = tmp.fileSync({ postfix: '.js' })
   const js = `import msg from '${msgFilename}'; var foo = msg\`string\``
-  fs.write(jsFile.fd, js, err => {
-    if (err) throw err
-    const plugins = [[plugin, { include: /\.messages\.yaml$/ }]]
-    babel.transformFile(jsFile.name, { plugins }, err => {
-      if (err) throw err
-      fs.readFile(msgFilename, 'utf8', (err, data) => {
-        if (err) throw err
-        const doc = yaml.safeLoad(data)
-        expect(doc).toMatchObject({ string: 'string' })
-        done()
-      })
-    })
-  })
+  return parse(msgFilename, js)
+    .then(doc => expect(doc).toMatchObject({ string: 'string' }))
 })
 
-it('Keeps previously set keys', (done) => {
+it('Keeps previously set keys', () => {
   const msgFile = tmp.fileSync({ postfix: '.messages.yaml' })
   const msg = { string: 'prev' }
-  fs.writeFileSync(msgFile.fd, yaml.safeDump(msg))
-  const jsFile = tmp.fileSync({ postfix: '.js' })
   const js = `import msg from '${msgFile.name}'; var foo = msg\`string\``
-  fs.write(jsFile.fd, js, err => {
-    if (err) throw err
-    const plugins = [[plugin, { include: /\.messages\.yaml$/ }]]
-    babel.transformFile(jsFile.name, { plugins }, err => {
-      if (err) throw err
-      fs.readFile(msgFile.fd, 'utf8', (err, data) => {
-        if (err) throw err
-        const doc = yaml.safeLoad(data)
-        expect(doc).toMatchObject({ string: 'prev' })
-        done()
-      })
-    })
-  })
+  return writeFile(msgFile.fd, yaml.safeDump(msg))
+    .then(() => parse(msgFile.name, js))
+    .then(doc => expect(doc).toMatchObject({ string: 'prev' }))
 })
