@@ -1,3 +1,5 @@
+const fs = require('fs')
+const yaml = require('js-yaml')
 const path = require('path')
 
 const resolveImportPath = (source, target) => (
@@ -40,8 +42,30 @@ module.exports = function (babel) {
       }
     },
     post (state) {
-      console.log('files', this.files)
-      console.log('messages', this.messages)
+      for (const key in this.files) {
+        const filename = this.files[key]
+        const messages = this.messages[key]
+        let doc
+        try {
+          const data = fs.readFileSync(filename, 'utf8')
+          doc = yaml.safeLoad(data, { filename }) // may throw YAMLException on error
+          let changed = false
+          messages.forEach(msg => {
+            if (!doc.hasOwnProperty(msg)) {
+              doc[msg] = msg
+              changed = true
+            }
+          })
+          if (!changed) continue
+        } catch (err) {
+          if (err.code !== 'ENOENT') throw err
+          doc = messages.reduce((doc, msg) => {
+            doc[msg] = msg
+            return doc
+          }, {})
+        }
+        fs.writeFileSync(filename, yaml.safeDump(doc))
+      }
     }
   }
 }
