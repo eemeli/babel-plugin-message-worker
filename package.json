@@ -16,11 +16,11 @@
     "test": "jest"
   },
   "devDependencies": {
-    "babel-core": "^6.26.0",
-    "jest": "^21.2.1",
+    "babel-core": "^6.26.3",
+    "jest": "^23.6.0",
     "tmp": "0.0.33"
   },
   "dependencies": {
-    "js-yaml": "^3.10.0"
+    "js-yaml": "^3.12.0"
   }
 }
