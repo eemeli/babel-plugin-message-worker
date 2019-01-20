@@ -61,6 +61,15 @@ const visit = (plugin, path, msg = []) => {
   return msg
 }
 
+const compileMessagePart = ({ allNamedVars, indent, inPlural, vars, wrapVar }) => (part) => {
+  if (typeof part === 'string') return MessageFormat.escape(part, inPlural)
+  if (part instanceof Message) return part.compileMessage(vars, indent + '  ')
+  if (!part || !part.node) throw this.arg.buildCodeFrameError('Unknown message part')
+  if (allNamedVars) return wrapVar(part.node.name)
+  const q = part.isIdentifier() ? part.node.name : part
+  return wrapVar(String(vars.indexOf(q)))
+}
+
 class Message {
   constructor (plugin, path, name) {
     this.plugin = plugin
@@ -114,16 +123,15 @@ class TemplateMessage extends Message {
   }
 
   compileMessage (vars, indent = '') {
-    if (!vars) vars = this.vars
-    const allNamedVars = vars.every(v => typeof v === 'string')
-    const body = this.parts.map((part) => {
-      if (typeof part === 'string') return MessageFormat.escape(part)
-      if (part instanceof Message) return part.compileMessage(vars, indent + '  ')
-      if (!part || !part.node) throw this.arg.buildCodeFrameError('Unknown message part')
-      if (allNamedVars) return `{${part.node.name}}`
-      const q = part.isIdentifier() ? part.node.name : part
-      return `{${vars.indexOf(q)}}`
-    })
+    const ctx = {
+      allNamedVars: false,
+      indent,
+      inPlural: false,
+      vars: vars || this.vars,
+      wrapVar: (name) => `{${name}}`
+    }
+    if (ctx.vars.every(v => typeof v === 'string')) ctx.allNamedVars = true
+    const body = this.parts.map(compileMessagePart(ctx))
     return body.join('')
   }
 }
@@ -179,31 +187,28 @@ class SelectMessage extends Message {
   }
 
   compileMessage (vars, indent = '') {
-    if (!vars) vars = this.vars
-    const allNamedVars = vars.every(v => typeof v === 'string')
-    let varName, varQ
-    if (allNamedVars) {
+    const ctx = {
+      allNamedVars: false,
+      indent,
+      inPlural: this.name === 'plural',
+      vars: vars || this.vars,
+      wrapVar: (name) => `{${name}}`
+    }
+    let varName
+    if (ctx.vars.every(v => typeof v === 'string')) {
+      ctx.allNamedVars = true
       varName = this.variable.node.name
     } else {
-      varQ = this.variable.isIdentifier() ? this.variable.node.name : this.variable
-      varName = String(vars.indexOf(varQ))
+      const q = this.variable.isIdentifier() ? this.variable.node.name : this.variable
+      varName = String(ctx.vars.indexOf(q))
     }
+    if (ctx.inPlural) ctx.wrapVar = (name) => name === varName ? '#' : `{${name}}`
+    const cmp = compileMessagePart(ctx)
+
     const body = [`{${varName}, ${this.name},`]
     if (this.offset > 0) body[0] += ` offset:${this.offset}`
-    const inPlural = this.name === 'plural'
-    for (const { key, msg } of this.cases) {
-      const strMsg = msg.map((part) => {
-        if (typeof part === 'string') return MessageFormat.escape(part, inPlural)
-        if (part instanceof Message) return part.compileMessage(vars, indent + '  ')
-        if (!part || !part.node) throw this.arg.buildCodeFrameError('Unknown message part')
-        if (allNamedVars) return inPlural && part.node.name === varName
-          ? '#'
-          : `{${part.node.name}}`
-        const q = part.isIdentifier() ? part.node.name : part
-        return inPlural && q === varQ ? '#' : `{${vars.indexOf(q)}}`
-      })
-      body.push(` ${key} {${strMsg.join('')}}`)
-    }
+    for (const { key, msg } of this.cases)
+      body.push(` ${key} {${msg.map(cmp).join('')}}`)
     const len = body.reduce((len, s) => len + s.length, 0)
     const maxLen = MAX_LINE_LENGTH - indent.length
     return len > maxLen || body.some(s => s.includes('\n'))
