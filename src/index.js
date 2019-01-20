@@ -2,7 +2,12 @@ const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
 
-const { parseMsgFunction, parseMsgTemplate, parsePlural, parseSelect } = require('./parse')
+const {
+  parseMsgFunction,
+  parseMsgTemplate,
+  parsePlural,
+  parseSelect
+} = require('./parse')
 
 // this: PluginPass, babel-core/src/transformation/plugin-pass.js
 //   #file: File
@@ -29,9 +34,9 @@ const getImportParsers = ({ filename, opts }, { value }) => {
   return opts.imports[value]
 }
 
-const getMessages = (values) => {
+const getMessages = values => {
   const messages = Array.from(values)
-  messages.sort((a, b) => a.path.node.start < b.path.node.start ? -1 : 1)
+  messages.sort((a, b) => (a.path.node.start < b.path.node.start ? -1 : 1))
   for (let i = 0; i < messages.length - 1; ++i) {
     const { key } = messages[i]
     const match = [i]
@@ -40,30 +45,36 @@ const getMessages = (values) => {
     }
     if (match.length > 1) {
       for (let k = 0; k < match.length; ++k) messages[k].key += `_${k}`
-      i = -1  // in case we created a new conflict
+      i = -1 // in case we created a new conflict
     }
   }
   return messages
 }
 
-
 const getFilePath = ({ filePath, locales }, { filename }) => {
-  if (!path.isAbsolute(filePath)) filePath = path.resolve(process.cwd(), filePath)
+  if (!path.isAbsolute(filePath))
+    filePath = path.resolve(process.cwd(), filePath)
   return filePath.replace('[locale]', locales[0])
   // TODO: handle sourcepath
 }
 
-module.exports = function (babel) {
+module.exports = function(babel) {
   return {
-    pre (state) {
-      this.opts = Object.assign({
-        filePath: 'messages/[locale].yaml',
-        locales: ['en'],
-        messagePath: '[sourcepath]/[name]',
-        imports: {}
-      }, this.opts)
+    pre(state) {
+      this.opts = Object.assign(
+        {
+          filePath: 'messages/[locale].yaml',
+          locales: ['en'],
+          messagePath: '[sourcepath]/[name]',
+          imports: {}
+        },
+        this.opts
+      )
       if (!this.opts.imports.hasOwnProperty('messages')) {
-        const msg = { CallExpression: parseMsgFunction, TaggedTemplateExpression: parseMsgTemplate }
+        const msg = {
+          CallExpression: parseMsgFunction,
+          TaggedTemplateExpression: parseMsgTemplate
+        }
         this.opts.imports.messages = {
           default: msg,
           msg,
@@ -74,15 +85,17 @@ module.exports = function (babel) {
     },
 
     visitor: {
-      ImportDeclaration (path) {
+      ImportDeclaration(path) {
         const { source, specifiers } = path.node
         const importParsers = getImportParsers(this, source)
-        if (!importParsers) return;
+        if (!importParsers) return
         for (const { imported, local, type } of specifiers) {
           let parsers
           switch (type) {
             case 'ImportNamespaceSpecifier':
-              throw path.buildCodeFrameError('Namespace imports ("* as foo") are not supported for message functions')
+              throw path.buildCodeFrameError(
+                'Namespace imports ("* as foo") are not supported for message functions'
+              )
             case 'ImportDefaultSpecifier':
               parsers = importParsers.default
               break
@@ -90,7 +103,8 @@ module.exports = function (babel) {
               parsers = importParsers[imported.name]
           }
           if (parsers) {
-            for (const { parent: node } of path.scope.getBinding(local.name).referencePaths) {
+            for (const { parent: node } of path.scope.getBinding(local.name)
+              .referencePaths) {
               const parse = parsers[node.type]
               if (parse) this.set(node, parse)
             }
@@ -98,13 +112,13 @@ module.exports = function (babel) {
         }
       },
 
-      'CallExpression|TaggedTemplateExpression' (path) {
+      'CallExpression|TaggedTemplateExpression'(path) {
         const parse = this.get(path.node)
         if (parse) this.set(path.node, parse(this, path))
       }
     },
 
-    post (state) {
+    post(state) {
       const filePath = getFilePath(this.opts, state.opts)
       const messages = getMessages(this.values())
 

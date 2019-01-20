@@ -6,8 +6,7 @@ const MAX_LINE_LENGTH = 60
 const accumulateVars = (parts, vars = []) => {
   for (const part of parts) {
     if (part instanceof Message) {
-      for (const v of part.vars)
-        if (!vars.includes(v)) vars.push(v)
+      for (const v of part.vars) if (!vars.includes(v)) vars.push(v)
     } else if (part && typeof part === 'object') {
       const { name, type } = part.node
       if (type !== 'Identifier') vars.push(part)
@@ -18,7 +17,7 @@ const accumulateVars = (parts, vars = []) => {
 }
 
 // used for automatic key generation
-const getSourceTarget = (path) => {
+const getSourceTarget = path => {
   if (path.isVariableDeclarator()) {
     // var x = msg() -> 'x'
     const id = path.get('id')
@@ -29,7 +28,11 @@ const getSourceTarget = (path) => {
   } else if (path.isObjectProperty()) {
     // var x = { y: msg() } -> 'x.y'
     const key = path.get('key')
-    return getSourceTarget(path.parentPath.parentPath) + '.' + (key.node.name || key.getSource())
+    return (
+      getSourceTarget(path.parentPath.parentPath) +
+      '.' +
+      (key.node.name || key.getSource())
+    )
   } else {
     return ''
   }
@@ -53,7 +56,7 @@ const visit = (plugin, path, msg = []) => {
     const parse = plugin.get(path.node)
     if (parse) {
       msg.push(parse(plugin, path))
-      plugin.delete(path.node)  // inner message is included in this visit
+      plugin.delete(path.node) // inner message is included in this visit
     } else {
       msg.push(path)
     }
@@ -61,17 +64,24 @@ const visit = (plugin, path, msg = []) => {
   return msg
 }
 
-const compileMessagePart = ({ allNamedVars, indent, inPlural, vars, wrapVar }) => (part) => {
+const compileMessagePart = ({
+  allNamedVars,
+  indent,
+  inPlural,
+  vars,
+  wrapVar
+}) => part => {
   if (typeof part === 'string') return MessageFormat.escape(part, inPlural)
   if (part instanceof Message) return part.compileMessage(vars, indent + '  ')
-  if (!part || !part.node) throw this.arg.buildCodeFrameError('Unknown message part')
+  if (!part || !part.node)
+    throw this.arg.buildCodeFrameError('Unknown message part')
   if (allNamedVars) return wrapVar(part.node.name)
   const q = part.isIdentifier() ? part.node.name : part
   return wrapVar(String(vars.indexOf(q)))
 }
 
 class Message {
-  constructor (plugin, path, name) {
+  constructor(plugin, path, name) {
     this.plugin = plugin
     this.path = path
     this.name = name
@@ -82,22 +92,26 @@ class Message {
     }
   }
 
-  get key () {
+  get key() {
     if (this._key) return this._key
     if (t.isObjectExpression(this.options)) {
       const { properties } = this.options.node
       for (let i = 0; i < properties.length; ++i) {
-        if (properties[i].key.name !== 'key') continue;
+        if (properties[i].key.name !== 'key') continue
         const keyPath = this.options.get(`properties.${i}.value`)
-        if (!keyPath.isStringLiteral) throw keyPath.buildCodeFrameError('If set, the key option must be a literal string')
-        return this._key = keyPath.node.value
+        if (!keyPath.isStringLiteral)
+          throw keyPath.buildCodeFrameError(
+            'If set, the key option must be a literal string'
+          )
+        return (this._key = keyPath.node.value)
       }
     }
-    const srcKey = getSourceTarget(this.path.parentPath) || this.compileMessage()
-    return this._key = srcKey.replace(/\W+/g, '_').replace(/^_|_$/g, '')
+    const srcKey =
+      getSourceTarget(this.path.parentPath) || this.compileMessage()
+    return (this._key = srcKey.replace(/\W+/g, '_').replace(/^_|_$/g, ''))
   }
 
-  set key (key) {
+  set key(key) {
     this._key = key
   }
 
@@ -122,13 +136,13 @@ class TemplateMessage extends Message {
     return this.vars
   }
 
-  compileMessage (vars, indent = '') {
+  compileMessage(vars, indent = '') {
     const ctx = {
       allNamedVars: false,
       indent,
       inPlural: false,
       vars: vars || this.vars,
-      wrapVar: (name) => `{${name}}`
+      wrapVar: name => `{${name}}`
     }
     if (ctx.vars.every(v => typeof v === 'string')) ctx.allNamedVars = true
     const body = this.parts.map(compileMessagePart(ctx))
@@ -143,66 +157,86 @@ class SelectMessage extends Message {
     return msg
   }
 
-  constructor (plugin, path, name = 'select') {
+  constructor(plugin, path, name = 'select') {
     super(plugin, path, name)
-    if (this.variable.isLiteral()) throw this.variable.buildCodeFrameError(`Expected a non-literal value as the first ${name}() argument`)
-    if (!this.arg.isObjectExpression()) throw this.arg.buildCodeFrameError(`Expected a literal object as the second ${name}() argument`)
+    if (this.variable.isLiteral())
+      throw this.variable.buildCodeFrameError(
+        `Expected a non-literal value as the first ${name}() argument`
+      )
+    if (!this.arg.isObjectExpression())
+      throw this.arg.buildCodeFrameError(
+        `Expected a literal object as the second ${name}() argument`
+      )
   }
 
-  parseVars () {
+  parseVars() {
     this.vars = accumulateVars([this.variable])
     for (const { msg } of this.cases) accumulateVars(msg, this.vars)
     return this.vars
   }
 
   /** @type {{ key: string, msg: (string|Message|NodePath)[] }[]} */
-  get cases () {
-    if (!this._cases) this._cases = this.arg.node.properties.map(({ type }, i) => {
-      if (type !== 'ObjectProperty') throw this.arg.buildCodeFrameError(`The cases parameter does not support ${type}`)
-      const keyPath = this.arg.get(`properties.${i}.key`)
-      const key = (
-        keyPath.isIdentifier() ? keyPath.node.name
-        : keyPath.isLiteral() ? String(keyPath.node.value)
-        : null
-      )
-      if (key == null) throw keyPath.buildCodeFrameError(`Keys of type ${keyPath.node.type} are not supported here`)
-      //console.log('CASES PLUGIN', this.plugin)
-      const msg = visit(this.plugin, this.arg.get(`properties.${i}.value`))
-      return { key, msg }
-    })
+  get cases() {
+    if (!this._cases)
+      this._cases = this.arg.node.properties.map(({ type }, i) => {
+        if (type !== 'ObjectProperty')
+          throw this.arg.buildCodeFrameError(
+            `The cases parameter does not support ${type}`
+          )
+        const keyPath = this.arg.get(`properties.${i}.key`)
+        const key = keyPath.isIdentifier()
+          ? keyPath.node.name
+          : keyPath.isLiteral()
+          ? String(keyPath.node.value)
+          : null
+        if (key == null)
+          throw keyPath.buildCodeFrameError(
+            `Keys of type ${keyPath.node.type} are not supported here`
+          )
+        //console.log('CASES PLUGIN', this.plugin)
+        const msg = visit(this.plugin, this.arg.get(`properties.${i}.value`))
+        return { key, msg }
+      })
     return this._cases
   }
 
-  get offset () {
+  get offset() {
     if (typeof this._offset === 'number') return this._offset
-    if (!t.isObjectExpression(this.options) || this.name !== 'plural') return this._offset = 0
+    if (!t.isObjectExpression(this.options) || this.name !== 'plural')
+      return (this._offset = 0)
     const { properties } = this.options.node
     for (let i = 0; i < properties.length; ++i) {
-      if (properties[i].key.name !== 'offset') continue;
+      if (properties[i].key.name !== 'offset') continue
       const path = this.options.get(`properties.${i}.value`)
-      if (!path.isNumericLiteral) throw path.buildCodeFrameError('If set, the offset option must be a literal number')
-      return this._offset = path.node.value
+      if (!path.isNumericLiteral)
+        throw path.buildCodeFrameError(
+          'If set, the offset option must be a literal number'
+        )
+      return (this._offset = path.node.value)
     }
-    return this._offset = 0
+    return (this._offset = 0)
   }
 
-  compileMessage (vars, indent = '') {
+  compileMessage(vars, indent = '') {
     const ctx = {
       allNamedVars: false,
       indent,
       inPlural: this.name === 'plural',
       vars: vars || this.vars,
-      wrapVar: (name) => `{${name}}`
+      wrapVar: name => `{${name}}`
     }
     let varName
     if (ctx.vars.every(v => typeof v === 'string')) {
       ctx.allNamedVars = true
       varName = this.variable.node.name
     } else {
-      const q = this.variable.isIdentifier() ? this.variable.node.name : this.variable
+      const q = this.variable.isIdentifier()
+        ? this.variable.node.name
+        : this.variable
       varName = String(ctx.vars.indexOf(q))
     }
-    if (ctx.inPlural) ctx.wrapVar = (name) => name === varName ? '#' : `{${name}}`
+    if (ctx.inPlural)
+      ctx.wrapVar = name => (name === varName ? '#' : `{${name}}`)
     const cmp = compileMessagePart(ctx)
 
     const body = [`{${varName}, ${this.name},`]
@@ -224,13 +258,17 @@ class PluralMessage extends SelectMessage {
     return msg
   }
 
-  constructor (plugin, path) {
+  constructor(plugin, path) {
     super(plugin, path, 'plural')
     for (const c of this.cases) {
       if (Number.isInteger(Number(c.key))) {
         c.key = `=${c.key}`
-      } else if (!['zero', 'one', 'two', 'few', 'many', 'other'].includes(c.key)) {
-        throw path.buildCodeFrameError('Expected only valid plural categories as plural() cases')
+      } else if (
+        !['zero', 'one', 'two', 'few', 'many', 'other'].includes(c.key)
+      ) {
+        throw path.buildCodeFrameError(
+          'Expected only valid plural categories as plural() cases'
+        )
       }
     }
   }
