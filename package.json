@@ -13,16 +13,21 @@
   "author": "Eemeli Aro <eemeli@gmail.com>",
   "license": "MIT",
   "scripts": {
+    "prettier": "prettier --write 'src/**'",
     "test": "jest"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
   },
   "devDependencies": {
     "babel-core": "^6.26.3",
     "jest": "^23.6.0",
+    "prettier": "^1.16.0",
     "tmp": "0.0.33"
   },
   "dependencies": {
     "babel-types": "^6.26.0",
-    "js-yaml": "^3.12.0",
     "messageformat": "^2.0.5",
     "yaml": "^1.2.1"
   }
