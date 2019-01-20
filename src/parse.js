@@ -36,19 +36,19 @@ const getSourceTarget = (path) => {
 }
 
 const visit = (plugin, path, msg = []) => {
-  if (path.isLiteral()) {
-    const { value } = path.node
-    msg.push(value == null ? 'null' : String(value))
-  } else if (path.isBinaryExpression({ operator: '+' })) {
-    visit(plugin, path.get('left'), msg)
-    visit(plugin, path.get('right'), msg)
-  } else if (path.isTemplateLiteral()) {
+  if (path.isTemplateLiteral()) {
     const quasis = path.node.quasis.map(q => q.value.cooked)
     msg.push(quasis[0])
     for (let i = 1; i < quasis.length; ++i) {
       visit(plugin, path.get(`expressions.${i - 1}`), msg)
       msg.push(quasis[i])
     }
+  } else if (path.isLiteral()) {
+    const { value } = path.node
+    msg.push(value == null ? 'null' : String(value))
+  } else if (path.isBinaryExpression({ operator: '+' })) {
+    visit(plugin, path.get('left'), msg)
+    visit(plugin, path.get('right'), msg)
   } else {
     const parse = plugin.get(path.node)
     if (parse) {
@@ -70,9 +70,6 @@ class Message {
       this.variable = path.get('arguments.0')
       this.arg = path.get('arguments.1')
       this.options = path.get('arguments.2')
-    } else if (path.isTaggedTemplateExpression()) {
-      //this.variable = path.get('tag')
-      this.template = path.get('quasi')
     }
   }
 
@@ -103,22 +100,33 @@ class Message {
   }
 }
 
-
-/*
-TaggedTemplateExpression ({ hub: { file }, node: { tag, quasi: { expressions, quasis } } }) {
-  console.log('TTE', tag)
-  const parse = this.get(tag)
-  if (!parse) return
-  let message = quasis[0].value.cooked
-  for (let i = 1; i < quasis.length; ++i) {
-    message += `{${i - 1}}${quasis[i].value.cooked}`
+class TemplateMessage extends Message {
+  static parse(plugin, path) {
+    const msg = new TemplateMessage(plugin, path)
+    msg.vars = msg.parseVars()
+    return msg
   }
-  const vars = expressions.map(({ start, end }) => (
-    end ? file.code.slice(start, end).trim() : ''
-  ))
-  this.messages[tag.name].push(message)  // file, line number
+
+  parseVars() {
+    this.parts = visit(this.plugin, this.path.get('quasi'))
+    this.vars = accumulateVars(this.parts)
+    return this.vars
+  }
+
+  compileMessage (vars, indent = '') {
+    if (!vars) vars = this.vars
+    const allNamedVars = vars.every(v => typeof v === 'string')
+    const body = this.parts.map((part) => {
+      if (typeof part === 'string') return MessageFormat.escape(part)
+      if (part instanceof Message) return part.compileMessage(vars, indent + '  ')
+      if (!part || !part.node) throw this.arg.buildCodeFrameError('Unknown message part')
+      if (allNamedVars) return `{${part.node.name}}`
+      const q = part.isIdentifier() ? part.node.name : part
+      return `{${vars.indexOf(q)}}`
+    })
+    return body.join('')
+  }
 }
-*/
 
 class SelectMessage extends Message {
   static parse(plugin, path) {
@@ -225,7 +233,7 @@ class PluralMessage extends SelectMessage {
 
 module.exports = {
   parseMsgFunction: (plugin, path) => 'MSG-FUNC',
-  parseMsgTemplate: (plugin, path) => 'MSG-TMPL',
+  parseMsgTemplate: TemplateMessage.parse,
   parsePlural: PluralMessage.parse,
   parseSelect: SelectMessage.parse
 }

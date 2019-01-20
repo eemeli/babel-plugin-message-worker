@@ -78,14 +78,17 @@ module.exports = function (babel) {
         const { source, specifiers } = path.node
         const importParsers = getImportParsers(this, source)
         if (!importParsers) return;
-        for (const { imported: { name }, local, type } of specifiers) {
+        for (const { imported, local, type } of specifiers) {
+          let parsers
           switch (type) {
             case 'ImportNamespaceSpecifier':
               throw path.buildCodeFrameError('Namespace imports ("* as foo") are not supported for message functions')
             case 'ImportDefaultSpecifier':
-              name = 'default'
+              parsers = importParsers.default
+              break
+            default:
+              parsers = importParsers[imported.name]
           }
-          const parsers = importParsers[name]
           if (parsers) {
             for (const { parent: node } of path.scope.getBinding(local.name).referencePaths) {
               const parse = parsers[node.type]

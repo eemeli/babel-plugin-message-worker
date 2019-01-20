@@ -10,19 +10,22 @@ const readFile = util.promisify(fs.readFile)
 const transformFile = util.promisify(babel.transformFile)
 const writeFile = util.promisify(fs.writeFile)
 
-const parse = (js) => {
+const testParse = (js, expected) => {
   const jsFile = tmp.fileSync({ postfix: '.js' })
   const msgFile = tmp.fileSync({ postfix: '.messages.yaml' })
   const plugins = [[plugin, { filePath: msgFile.name }]]
   return writeFile(jsFile.fd, js)
     .then(() => transformFile(jsFile.name, { plugins }))
     .then(() => readFile(msgFile.name, 'utf8'))
-    .then(src => YAML.parse(src))
+    .then(src => {
+      const obj = YAML.parse(src)
+      expect(obj).toMatchObject(expected)
+    })
 }
 
-test('select & plural', () => {
+test('plural wrapped in select', () => {
   const js = `
-import { plural, select } from 'messages';
+import { plural, select } from 'messages'
 var foo = 'FOO', bar = 'BAR'
 var baz = {
   zzz: select(foo, {
@@ -31,65 +34,69 @@ var baz = {
     one: bar,
     other: 'N'
   })
-})};
+})}
 var baz_zzz = plural(foo, { other: 'Z' })`
-  const expected = {
+  return testParse(js, {
     baz_zzz_0: `{foo, select,\n  bar {U}\n  foo {X{bar, plural, one {#} other {N}}}\n}`,
     baz_zzz_1: `{foo, plural, other {Z}}`
-  }
-  return parse(js).then(obj => expect(obj).toMatchObject(expected))
+  })
+})
+
+describe('template literal', () => {
+  test('default import', () => {
+    const js = `
+      import msg from 'messages'
+      var foo = 'FOO', bar = 'BAR'
+      var baz = msg\`MSG \${foo}\${bar}\``
+    return testParse(js, { baz: `MSG {foo}{bar}` })
+  })
+
+  test('named import', () => {
+    const js = `
+      import { msg } from 'messages'
+      var foo = 'FOO', bar = 'BAR'
+      var baz = msg\`MSG \${foo}\${bar}\``
+    return testParse(js, { baz: `MSG {foo}{bar}` })
+  })
+
+  test('bare string', () => {
+    const js = `
+      import msg from 'messages'
+      var baz = msg\`MSG\``
+    return testParse(js, { baz: `MSG` })
+  })
+
+  test('variable concatenation', () => {
+    const js = `
+      import msg from 'messages'
+      var foo = 'FOO', bar = 'BAR'
+      var baz = msg\`MSG \${foo + 'X' + bar}\``
+    return testParse(js, { baz: `MSG {foo}X{bar}` })
+  })
+
+  test('wrapped function', () => {
+    const js = `
+      import msg from 'messages'
+      function foo() { return 'FOO' }
+      var baz = msg\`MSG \${foo()}\``
+    return testParse(js, { baz: `MSG {0}` })
+  })
+
+  test('wrapped select', () => {
+    const js = `
+      import msg, { select } from 'messages'
+      var foo = 'FOO', bar = 'BAR'
+      var baz = msg\`MSG \${select(foo, { bar: 'U', foo: foo })}\${bar}\``
+    return testParse(js, { baz: `MSG {foo, select, bar {U} foo {{foo}}}{bar}` })
+  })
 })
 
 /*
-it('works', () => {
-  const msgFile = tmp.fileSync({ postfix: '.messages.yaml' })
-  const msg = { string: 'prev' }
-  const js = `import msg from 'messages'; var foo = msg\`string\`; var bar = msg({a:1});`
-  return writeFile(msgFile.fd, yaml.safeDump(msg))
-    .then(() => parse(msgFile.name, js))
-    .then(doc => expect(doc).toMatchObject({ string: 'prev' }))
-})
-
 it('Requires `include` parameter', () => {
   const example = `import './x'; var foo = 1`
   expect(() => babel.transform(example, { plugins: [plugin] })).toThrow()
   expect(() => babel.transform(example, { plugins: [
     [plugin, { include: /x/ }]
   ] })).not.toThrow()
-})
-
-it('Parses bare string', () => {
-  const msgFilename = tmp.tmpNameSync({ postfix: '.messages.yaml' })
-  const js = `import msg from '${msgFilename}'; var foo = msg\`string\``
-  return parse(msgFilename, js)
-    .then(doc => expect(doc).toMatchObject({ string: 'string' }))
-})
-
-it('Keeps previously set keys', () => {
-  const msgFile = tmp.fileSync({ postfix: '.messages.yaml' })
-  const msg = { string: 'prev' }
-  const js = `import msg from '${msgFile.name}'; var foo = msg\`string\``
-  return writeFile(msgFile.fd, yaml.safeDump(msg))
-    .then(() => parse(msgFile.name, js))
-    .then(doc => expect(doc).toMatchObject({ string: 'prev' }))
-})
-
-it('Parses one variable', () => {
-  const msgFilename = tmp.tmpNameSync({ postfix: '.messages.yaml' })
-  const js = `
-import msg from '${msgFilename}';
-var foo = 'foo';
-var bar = msg\`var \${foo}\`;`
-  return parse(msgFilename, js)
-    .then(doc => expect(doc).toMatchObject({ 'var {0}': 'var {0}' }))
-})
-
-it('Parses simple expression', () => {
-  const msgFilename = tmp.tmpNameSync({ postfix: '.messages.yaml' })
-  const js = `
-import msg from '${msgFilename}';
-var bar = msg\`var \${1 + 1}\`;`
-  return parse(msgFilename, js)
-    .then(doc => expect(doc).toMatchObject({ 'var {0}': 'var {0}' }))
 })
 */
