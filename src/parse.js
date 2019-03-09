@@ -202,23 +202,6 @@ class SelectMessage extends Message {
     return this._cases
   }
 
-  get offset() {
-    if (typeof this._offset === 'number') return this._offset
-    if (!t.isObjectExpression(this.options) || this.name !== 'plural')
-      return (this._offset = 0)
-    const { properties } = this.options.node
-    for (let i = 0; i < properties.length; ++i) {
-      if (properties[i].key.name !== 'offset') continue
-      const path = this.options.get(`properties.${i}.value`)
-      if (!path.isNumericLiteral)
-        throw path.buildCodeFrameError(
-          'If set, the offset option must be a literal number'
-        )
-      return (this._offset = path.node.value)
-    }
-    return (this._offset = 0)
-  }
-
   compileMessage(vars, indent = '') {
     const ctx = {
       allNamedVars: false,
@@ -243,7 +226,6 @@ class SelectMessage extends Message {
     const cmp = compileMessagePart(ctx)
 
     const body = [`{${varName}, ${this.name},`]
-    if (this.offset > 0) body[0] += ` offset:${this.offset}`
     for (const { key, msg } of this.cases)
       body.push(` ${key} {${msg.map(cmp).join('')}}`)
     const len = body.reduce((len, s) => len + s.length, 0)
