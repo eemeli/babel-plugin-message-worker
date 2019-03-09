@@ -68,13 +68,14 @@ const compileMessagePart = ({
   allNamedVars,
   indent,
   inPlural,
+  path,
   vars,
   wrapVar
 }) => part => {
   if (typeof part === 'string') return MessageFormat.escape(part, inPlural)
   if (part instanceof Message) return part.compileMessage(vars, indent + '  ')
   if (!part || !part.node)
-    throw this.arg.buildCodeFrameError('Unknown message part')
+    throw path.buildCodeFrameError('Unknown message part')
   if (allNamedVars) return wrapVar(part.node.name)
   const q = part.isIdentifier() ? part.node.name : part
   return wrapVar(String(vars.indexOf(q)))
@@ -141,6 +142,7 @@ class TemplateMessage extends Message {
       allNamedVars: false,
       indent,
       inPlural: false,
+      path: this.path,
       vars: vars || this.vars,
       wrapVar: name => `{${name}}`
     }
@@ -222,6 +224,7 @@ class SelectMessage extends Message {
       allNamedVars: false,
       indent,
       inPlural: this.name === 'plural',
+      path: this.arg,
       vars: vars || this.vars,
       wrapVar: name => `{${name}}`
     }
