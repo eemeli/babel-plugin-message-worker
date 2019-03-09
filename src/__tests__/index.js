@@ -23,6 +23,16 @@ const testParse = (js, expected) => {
     })
 }
 
+test('ordinal', () => {
+  const js = `
+import { ordinal } from 'messages'
+var bar = 'BAR'
+var baz = ordinal(bar, { one: bar, other: 'N' })`
+  return testParse(js, {
+    baz: `{bar, selectordinal, one {#} other {N}}`
+  })
+})
+
 test('plural wrapped in select', () => {
   const js = `
 import { plural, select } from 'messages'

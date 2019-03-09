@@ -82,10 +82,9 @@ const compileMessagePart = ({
 }
 
 class Message {
-  constructor(plugin, path, name) {
+  constructor(plugin, path) {
     this.plugin = plugin
     this.path = path
-    this.name = name
     if (path.isCallExpression()) {
       this.variable = path.get('arguments.0')
       this.arg = path.get('arguments.1')
@@ -161,6 +160,7 @@ class SelectMessage extends Message {
 
   constructor(plugin, path, name = 'select') {
     super(plugin, path, name)
+    this.name = name
     if (this.variable.isLiteral())
       throw this.variable.buildCodeFrameError(
         `Expected a non-literal value as the first ${name}() argument`
@@ -206,7 +206,7 @@ class SelectMessage extends Message {
     const ctx = {
       allNamedVars: false,
       indent,
-      inPlural: this.name === 'plural',
+      inPlural: this.name === 'ordinal' || this.name === 'plural',
       path: this.arg,
       vars: vars || this.vars,
       wrapVar: name => `{${name}}`
@@ -221,11 +221,12 @@ class SelectMessage extends Message {
         : this.variable
       varName = String(ctx.vars.indexOf(q))
     }
+    const argName = this.name === 'ordinal' ? 'selectordinal' : this.name
     if (ctx.inPlural)
       ctx.wrapVar = name => (name === varName ? '#' : `{${name}}`)
     const cmp = compileMessagePart(ctx)
 
-    const body = [`{${varName}, ${this.name},`]
+    const body = [`{${varName}, ${argName},`]
     for (const { key, msg } of this.cases)
       body.push(` ${key} {${msg.map(cmp).join('')}}`)
     const len = body.reduce((len, s) => len + s.length, 0)
@@ -237,14 +238,20 @@ class SelectMessage extends Message {
 }
 
 class PluralMessage extends SelectMessage {
-  static parse(plugin, path) {
-    const msg = new PluralMessage(plugin, path)
+  static parseOrdinal(plugin, path) {
+    const msg = new PluralMessage(plugin, path, 'ordinal')
     msg.vars = msg.parseVars()
     return msg
   }
 
-  constructor(plugin, path) {
-    super(plugin, path, 'plural')
+  static parsePlural(plugin, path) {
+    const msg = new PluralMessage(plugin, path, 'plural')
+    msg.vars = msg.parseVars()
+    return msg
+  }
+
+  constructor(plugin, path, name = 'plural') {
+    super(plugin, path, name)
     for (const c of this.cases) {
       if (Number.isInteger(Number(c.key))) {
         c.key = `=${c.key}`
@@ -252,7 +259,7 @@ class PluralMessage extends SelectMessage {
         !['zero', 'one', 'two', 'few', 'many', 'other'].includes(c.key)
       ) {
         throw path.buildCodeFrameError(
-          'Expected only valid plural categories as plural() cases'
+          `Expected only valid plural categories as ${name}() cases`
         )
       }
     }
@@ -262,6 +269,7 @@ class PluralMessage extends SelectMessage {
 module.exports = {
   parseMsgFunction: (plugin, path) => 'MSG-FUNC',
   parseMsgTemplate: TemplateMessage.parse,
-  parsePlural: PluralMessage.parse,
+  parseOrdinal: PluralMessage.parseOrdinal,
+  parsePlural: PluralMessage.parsePlural,
   parseSelect: SelectMessage.parse
 }

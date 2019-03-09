@@ -5,6 +5,7 @@ const YAML = require('yaml')
 const {
   parseMsgFunction,
   parseMsgTemplate,
+  parseOrdinal,
   parsePlural,
   parseSelect
 } = require('./parse')
@@ -78,6 +79,7 @@ module.exports = function(babel) {
         this.opts.imports.messages = {
           default: msg,
           msg,
+          ordinal: { CallExpression: parseOrdinal },
           plural: { CallExpression: parsePlural },
           select: { CallExpression: parseSelect }
         }
