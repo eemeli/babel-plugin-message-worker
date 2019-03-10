@@ -33,7 +33,7 @@ var baz = ordinal(bar, { one: bar, other: 'N' })`
   })
 })
 
-test('plural wrapped in select', () => {
+test('plural in select in object', () => {
   const js = `
 import { plural, select } from 'messages'
 var foo = 'FOO', bar = 'BAR'
@@ -49,6 +49,22 @@ var baz_zzz = plural(foo, { other: 'Z' })`
   return testParse(js, {
     baz_zzz_0: `{foo, select,\n  bar {U}\n  foo {X{bar, plural, one {#} other {N}}}\n}`,
     baz_zzz_1: `{foo, plural, other {Z}}`
+  })
+})
+
+test('plural in template literal in select', () => {
+  const js = `
+import { plural, select } from 'messages'
+var foo = 'FOO', bar = 'BAR'
+var baz = select(foo, {
+  bar: 'U',
+  foo: \`X\${plural(bar, {
+    one: bar,
+    other: 'N'
+  })}Y\`
+})`
+  return testParse(js, {
+    baz: `{foo, select,\n  bar {U}\n  foo {X{bar, plural, one {#} other {N}}Y}\n}`
   })
 })
 

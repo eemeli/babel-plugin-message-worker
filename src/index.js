@@ -1,14 +1,11 @@
 const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
+const PluralMessage = require('./PluralMessage')
+const SelectMessage = require('./SelectMessage')
+const TemplateMessage = require('./TemplateMessage')
 
-const {
-  parseMsgFunction,
-  parseMsgTemplate,
-  parseOrdinal,
-  parsePlural,
-  parseSelect
-} = require('./parse')
+const parseMsgFunction = (plugin, path) => 'MSG-FUNC'
 
 // this: PluginPass, babel-core/src/transformation/plugin-pass.js
 //   #file: File
@@ -74,14 +71,14 @@ module.exports = function(babel) {
       if (!this.opts.imports.hasOwnProperty('messages')) {
         const msg = {
           CallExpression: parseMsgFunction,
-          TaggedTemplateExpression: parseMsgTemplate
+          TaggedTemplateExpression: TemplateMessage.parse
         }
         this.opts.imports.messages = {
           default: msg,
           msg,
-          ordinal: { CallExpression: parseOrdinal },
-          plural: { CallExpression: parsePlural },
-          select: { CallExpression: parseSelect }
+          ordinal: { CallExpression: PluralMessage.parseOrdinal },
+          plural: { CallExpression: PluralMessage.parsePlural },
+          select: { CallExpression: SelectMessage.parse }
         }
       }
     },
