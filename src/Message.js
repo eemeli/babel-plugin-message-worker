@@ -36,32 +36,6 @@ module.exports = class Message {
     return vars
   }
 
-  static visit(plugin, path, msg = []) {
-    if (path.isTemplateLiteral()) {
-      const quasis = path.node.quasis.map(q => q.value.cooked)
-      msg.push(quasis[0])
-      for (let i = 1; i < quasis.length; ++i) {
-        Message.visit(plugin, path.get(`expressions.${i - 1}`), msg)
-        msg.push(quasis[i])
-      }
-    } else if (path.isLiteral()) {
-      const { value } = path.node
-      msg.push(value == null ? 'null' : String(value))
-    } else if (path.isBinaryExpression({ operator: '+' })) {
-      Message.visit(plugin, path.get('left'), msg)
-      Message.visit(plugin, path.get('right'), msg)
-    } else {
-      const parse = plugin.get(path.node)
-      if (parse) {
-        msg.push(parse(plugin, path))
-        plugin.delete(path.node) // inner message is included in this visit
-      } else {
-        msg.push(path)
-      }
-    }
-    return msg
-  }
-
   constructor(plugin, path) {
     this.plugin = plugin
     this.path = path
@@ -95,10 +69,29 @@ module.exports = class Message {
     this._key = key
   }
 
-  parseVars() {
-    if (!this._msg) this._msg = Message.visit(this.plugin, this.arg)
-    this.vars = Message.accumulateVars([this.variable])
-    Message.accumulateVars(this._msg, this.vars)
-    return this.vars
+  visit(path, msg = []) {
+    if (path.isTemplateLiteral()) {
+      const quasis = path.node.quasis.map(q => q.value.cooked)
+      msg.push(quasis[0])
+      for (let i = 1; i < quasis.length; ++i) {
+        this.visit(path.get(`expressions.${i - 1}`), msg)
+        msg.push(quasis[i])
+      }
+    } else if (path.isLiteral()) {
+      const { value } = path.node
+      msg.push(value == null ? 'null' : String(value))
+    } else if (path.isBinaryExpression({ operator: '+' })) {
+      this.visit(path.get('left'), msg)
+      this.visit(path.get('right'), msg)
+    } else {
+      const parse = this.plugin.get(path.node)
+      if (parse) {
+        msg.push(parse(this.plugin, path))
+        this.plugin.delete(path.node) // inner message is included in this visit
+      } else {
+        msg.push(path)
+      }
+    }
+    return msg
   }
 }

@@ -48,10 +48,7 @@ module.exports = class SelectMessage extends Message {
             `Keys of type ${keyPath.node.type} are not supported here`
           )
         //console.log('CASES PLUGIN', this.plugin)
-        const msg = Message.visit(
-          this.plugin,
-          this.arg.get(`properties.${i}.value`)
-        )
+        const msg = this.visit(this.arg.get(`properties.${i}.value`))
         return { key, msg }
       })
     return this._cases

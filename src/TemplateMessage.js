@@ -9,7 +9,7 @@ module.exports = class TemplateMessage extends Message {
   }
 
   parseVars() {
-    this.parts = Message.visit(this.plugin, this.path.get('quasi'))
+    this.parts = this.visit(this.path.get('quasi'))
     this.vars = Message.accumulateVars(this.parts)
     return this.vars
   }
