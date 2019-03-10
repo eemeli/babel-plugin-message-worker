@@ -13,14 +13,17 @@ module.exports = class SelectMessage extends Message {
   constructor(plugin, path, name = 'select') {
     super(plugin, path, name)
     this.name = name
-    if (this.variable.isLiteral())
-      throw this.variable.buildCodeFrameError(
-        `Expected a non-literal value as the first ${name}() argument`
-      )
-    if (!this.arg.isObjectExpression())
-      throw this.arg.buildCodeFrameError(
-        `Expected a literal object as the second ${name}() argument`
-      )
+    this.variable = path.get('arguments.0')
+    this.arg = path.get('arguments.1')
+    this.options = path.get('arguments.2')
+    if (this.variable.isLiteral()) {
+      const msg = `Expected a non-literal value as the first ${name}() argument`
+      throw this.variable.buildCodeFrameError(msg)
+    }
+    if (!this.arg.isObjectExpression()) {
+      const msg = `Expected a literal object as the second ${name}() argument`
+      throw this.arg.buildCodeFrameError(msg)
+    }
   }
 
   parseVars() {

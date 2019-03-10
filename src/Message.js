@@ -39,11 +39,7 @@ module.exports = class Message {
   constructor(plugin, path) {
     this.plugin = plugin
     this.path = path
-    if (path.isCallExpression()) {
-      this.variable = path.get('arguments.0')
-      this.arg = path.get('arguments.1')
-      this.options = path.get('arguments.2')
-    }
+    this.options = null
   }
 
   get key() {
