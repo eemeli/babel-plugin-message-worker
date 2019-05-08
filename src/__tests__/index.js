@@ -1,4 +1,5 @@
 const babel = require('babel-core')
+const { source } = require('common-tags')
 const fs = require('fs')
 const tmp = require('tmp')
 const util = require('util')
@@ -24,53 +25,61 @@ const testParse = (js, expected) => {
 }
 
 test('ordinal', () => {
-  const js = `
-import { ordinal } from 'messages'
-var bar = 'BAR'
-var baz = ordinal(bar, { one: bar, other: 'N' })`
+  const js = source`
+    import { ordinal } from 'messages'
+    var bar = 'BAR'
+    var baz = ordinal(bar, { one: bar, other: 'N' })`
   return testParse(js, {
     baz: `{bar, selectordinal, one {#} other {N}}`
   })
 })
 
 test('plural in select in object', () => {
-  const js = `
-import { plural, select } from 'messages'
-var foo = 'FOO', bar = 'BAR'
-var baz = {
-  zzz: select(foo, {
-  bar: 'U',
-  foo: 'X' + plural(bar, {
-    one: bar,
-    other: 'N'
-  })
-})}
-var baz_zzz = plural(foo, { other: 'Z' })`
+  const js = source`
+    import { plural, select } from 'messages'
+    var foo = 'FOO', bar = 'BAR'
+    var baz = {
+      zzz: select(foo, {
+      bar: 'U',
+      foo: 'X' + plural(bar, {
+        one: bar,
+        other: 'N'
+      })
+    })}
+    var baz_zzz = plural(foo, { other: 'Z' })`
   return testParse(js, {
-    baz_zzz_0: `{foo, select,\n  bar {U}\n  foo {X{bar, plural, one {#} other {N}}}\n}`,
+    baz_zzz_0: source`
+      {foo, select,
+        bar {U}
+        foo {X{bar, plural, one {#} other {N}}}
+      }`,
     baz_zzz_1: `{foo, plural, other {Z}}`
   })
 })
 
 test('plural in template literal in select', () => {
-  const js = `
-import { plural, select } from 'messages'
-var foo = 'FOO', bar = 'BAR'
-var baz = select(foo, {
-  bar: 'U',
-  foo: \`X\${plural(bar, {
-    one: bar,
-    other: 'N'
-  })}Y\`
-})`
+  const js = source`
+    import { plural, select } from 'messages'
+    var foo = 'FOO', bar = 'BAR'
+    var baz = select(foo, {
+      bar: 'U',
+      foo: \`X\${plural(bar, {
+        one: bar,
+        other: 'N'
+      })}Y\`
+    })`
   return testParse(js, {
-    baz: `{foo, select,\n  bar {U}\n  foo {X{bar, plural, one {#} other {N}}Y}\n}`
+    baz: source`
+      {foo, select,
+        bar {U}
+        foo {X{bar, plural, one {#} other {N}}Y}
+      }`
   })
 })
 
 describe('template literal', () => {
   test('default import', () => {
-    const js = `
+    const js = source`
       import msg from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${foo}\${bar}\``
@@ -78,7 +87,7 @@ describe('template literal', () => {
   })
 
   test('named import', () => {
-    const js = `
+    const js = source`
       import { msg } from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${foo}\${bar}\``
@@ -86,14 +95,14 @@ describe('template literal', () => {
   })
 
   test('bare string', () => {
-    const js = `
+    const js = source`
       import msg from 'messages'
       var baz = msg\`MSG\``
     return testParse(js, { baz: `MSG` })
   })
 
   test('variable concatenation', () => {
-    const js = `
+    const js = source`
       import msg from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${foo + 'X' + bar}\``
@@ -101,7 +110,7 @@ describe('template literal', () => {
   })
 
   test('wrapped function', () => {
-    const js = `
+    const js = source`
       import msg from 'messages'
       function foo() { return 'FOO' }
       var baz = msg\`MSG \${foo()}\``
@@ -109,7 +118,7 @@ describe('template literal', () => {
   })
 
   test('wrapped select', () => {
-    const js = `
+    const js = source`
       import msg, { select } from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${select(foo, { bar: 'U', foo: foo })}\${bar}\``
