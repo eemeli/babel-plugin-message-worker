@@ -60,11 +60,10 @@ module.exports = class SelectMessage extends Message {
   compileMessage(vars, indent = '') {
     const ctx = {
       allNamedVars: false,
-      indent,
-      inPlural: this.name === 'ordinal' || this.name === 'plural',
+      indent: `${indent}     `,
       path: this.arg,
       vars: vars || this.vars,
-      wrapVar: name => `{${name}}`
+      wrapVar: name => `{$${name}}`
     }
     let varName
     if (ctx.vars.every(v => typeof v === 'string')) {
@@ -76,18 +75,23 @@ module.exports = class SelectMessage extends Message {
         : this.variable
       varName = String(ctx.vars.indexOf(q))
     }
-    const argName = this.name === 'ordinal' ? 'selectordinal' : this.name
-    if (ctx.inPlural)
-      ctx.wrapVar = name => (name === varName ? '#' : `{${name}}`)
-    const cmp = compileMessagePart(ctx)
+    const selArg =
+      this.name === 'ordinal'
+        ? `NUMBER($${varName}, type: "ordinal")`
+        : `$${varName}`
 
-    const body = [`{${varName}, ${argName},`]
-    for (const { key, msg } of this.cases)
-      body.push(` ${key} {${msg.map(cmp).join('')}}`)
-    const len = body.reduce((len, s) => len + s.length, 0)
-    const maxLen = MAX_LINE_LENGTH - indent.length
-    return len > maxLen || body.some(s => s.includes('\n'))
-      ? body.join(`\n${indent} `) + `\n${indent}}`
-      : body.join('') + '}'
+    const body = [`{ ${selArg} ->`]
+    const cmp = compileMessagePart(ctx)
+    let hasOther = false
+    for (const { key, msg } of this.cases) {
+      let def = ' '
+      if (key === 'other') {
+        def = '*'
+        hasOther = true
+      }
+      body.push(`${def}[${key}] ${msg.map(cmp).join('')}`)
+    }
+    if (!hasOther) body.push('*[other]')
+    return body.join(`\n${indent}  `) + `\n${indent}}`
   }
 }

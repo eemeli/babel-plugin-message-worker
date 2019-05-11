@@ -30,7 +30,11 @@ test('ordinal', () => {
     var bar = 'BAR'
     var baz = ordinal(bar, { one: bar, other: 'N' })`
   return testParse(js, {
-    baz: `{bar, selectordinal, one {#} other {N}}`
+    baz: source`
+      { NUMBER($bar, type: "ordinal") ->
+         [one] {$bar}
+        *[other] N
+      }`
   })
 })
 
@@ -49,11 +53,18 @@ test('plural in select in object', () => {
     var baz_zzz = plural(foo, { other: 'Z' })`
   return testParse(js, {
     baz_zzz_0: source`
-      {foo, select,
-        bar {U}
-        foo {X{bar, plural, one {#} other {N}}}
+      { $foo ->
+         [bar] U
+         [foo] X{ $bar ->
+              [one] {$bar}
+             *[other] N
+           }
+        *[other]
       }`,
-    baz_zzz_1: `{foo, plural, other {Z}}`
+    baz_zzz_1: source`
+      { $foo ->
+        *[other] Z
+      }`
   })
 })
 
@@ -70,9 +81,13 @@ test('plural in template literal in select', () => {
     })`
   return testParse(js, {
     baz: source`
-      {foo, select,
-        bar {U}
-        foo {X{bar, plural, one {#} other {N}}Y}
+      { $foo ->
+         [bar] U
+         [foo] X{ $bar ->
+              [one] {$bar}
+             *[other] N
+           }Y
+        *[other]
       }`
   })
 })
@@ -83,7 +98,7 @@ describe('template literal', () => {
       import msg from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${foo}\${bar}\``
-    return testParse(js, { baz: `MSG {foo}{bar}` })
+    return testParse(js, { baz: `MSG {$foo}{$bar}` })
   })
 
   test('named import', () => {
@@ -91,7 +106,7 @@ describe('template literal', () => {
       import { msg } from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${foo}\${bar}\``
-    return testParse(js, { baz: `MSG {foo}{bar}` })
+    return testParse(js, { baz: `MSG {$foo}{$bar}` })
   })
 
   test('bare string', () => {
@@ -106,7 +121,7 @@ describe('template literal', () => {
       import msg from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${foo + 'X' + bar}\``
-    return testParse(js, { baz: `MSG {foo}X{bar}` })
+    return testParse(js, { baz: `MSG {$foo}X{$bar}` })
   })
 
   test('wrapped function', () => {
@@ -114,7 +129,7 @@ describe('template literal', () => {
       import msg from 'messages'
       function foo() { return 'FOO' }
       var baz = msg\`MSG \${foo()}\``
-    return testParse(js, { baz: `MSG {0}` })
+    return testParse(js, { baz: `MSG {$arg0}` })
   })
 
   test('wrapped select', () => {
@@ -122,7 +137,14 @@ describe('template literal', () => {
       import msg, { select } from 'messages'
       var foo = 'FOO', bar = 'BAR'
       var baz = msg\`MSG \${select(foo, { bar: 'U', foo: foo })}\${bar}\``
-    return testParse(js, { baz: `MSG {foo, select, bar {U} foo {{foo}}}{bar}` })
+    return testParse(js, {
+      baz: source`
+        MSG { $foo ->
+           [bar] U
+           [foo] {$foo}
+          *[other]
+        }{$bar}`
+    })
   })
 })
 

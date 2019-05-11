@@ -21,7 +21,7 @@ module.exports = class TemplateMessage extends Message {
       inPlural: false,
       path: this.path,
       vars: vars || this.vars,
-      wrapVar: name => `{${name}}`
+      wrapVar: name => `{$${name}}`
     }
     if (ctx.vars.every(v => typeof v === 'string')) ctx.allNamedVars = true
     const body = this.parts.map(compileMessagePart(ctx))
