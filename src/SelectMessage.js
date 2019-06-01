@@ -1,3 +1,4 @@
+const t = require('babel-types')
 const compileMessagePart = require('./compileMessagePart')
 const Message = require('./Message')
 
@@ -13,23 +14,63 @@ module.exports = class SelectMessage extends Message {
   constructor(plugin, path, name = 'select') {
     super(plugin, path, name)
     this.name = name
+
     this.variable = path.get('arguments.0')
-    this.arg = path.get('arguments.1')
-    this.options = path.get('arguments.2')
     if (this.variable.isLiteral()) {
       const msg = `Expected a non-literal value as the first ${name}() argument`
       throw this.variable.buildCodeFrameError(msg)
     }
+
+    this.arg = path.get('arguments.1')
     if (!this.arg.isObjectExpression()) {
       const msg = `Expected a literal object as the second ${name}() argument`
       throw this.arg.buildCodeFrameError(msg)
     }
+
+    const opt = path.get('arguments.2')
+    if (opt) this.parseOptions(opt)
   }
 
   parseVars() {
     this.vars = Message.accumulateVars([this.variable])
     for (const { msg } of this.cases) Message.accumulateVars(msg, this.vars)
     return this.vars
+  }
+
+  parseOptions(opt) {
+    if (!opt.isObjectExpression()) {
+      const msg = `Expected a literal object as the third ${name}() argument`
+      throw opt.buildCodeFrameError(msg)
+    }
+    for (const { key, type, value } of opt.node.properties) {
+      if (type !== 'ObjectProperty') {
+        const msg = `The options parameter does not support ${type}`
+        throw opt.buildCodeFrameError(msg)
+      }
+      const keyName = t.isIdentifier(key) ? key.name : String(key.value)
+      if (!t.isLiteral(value)) {
+        const msg = `Expected literal option value, but found ${value.type}`
+        throw opt.buildCodeFrameError(msg)
+      }
+      this.options.set(keyName, value.value)
+    }
+  }
+
+  get numberOptions() {
+    if (this._numOpt === undefined) {
+      this._numOpt = [
+        'minimumIntegerDigits',
+        'minimumFractionDigits',
+        'maximumFractionDigits',
+        'minimumSignificantDigits',
+        'maximumSignificantDigits',
+        'type'
+      ]
+        .filter(key => this.options.has(key))
+        .map(key => `${key}: ${JSON.stringify(this.options.get(key))}`)
+        .join(', ')
+    }
+    return this._numOpt
   }
 
   /** @type {{ key: string, msg: (string|Message|NodePath)[] }[]} */
@@ -75,10 +116,8 @@ module.exports = class SelectMessage extends Message {
         : this.variable
       varName = String(ctx.vars.indexOf(q))
     }
-    const selArg =
-      this.name === 'ordinal'
-        ? `NUMBER($${varName}, type: "ordinal")`
-        : `$${varName}`
+    const numOpt = this.numberOptions
+    const selArg = numOpt ? `NUMBER($${varName}, ${numOpt})` : `$${varName}`
 
     const body = [`{ ${selArg} ->`]
     const cmp = compileMessagePart(ctx)

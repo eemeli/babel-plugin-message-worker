@@ -24,17 +24,63 @@ const testParse = (js, expected) => {
     })
 }
 
-test('ordinal', () => {
-  const js = source`
-    import { ordinal } from 'messages'
-    var bar = 'BAR'
-    var baz = ordinal(bar, { one: bar, other: 'N' })`
-  return testParse(js, {
-    baz: source`
-      { NUMBER($bar, type: "ordinal") ->
-         [one] {$bar}
-        *[other] N
-      }`
+describe('select', () => {
+  test('simple', () => {
+    const js = source`
+      import { select } from 'messages'
+      var bar = 'BAR'
+      var baz = select(bar, { one: bar, other: 'N' })`
+    return testParse(js, {
+      baz: source`
+        { $bar ->
+           [one] {$bar}
+          *[other] N
+        }`
+    })
+  })
+
+  describe('options', () => {
+    test('minimumFractionDigits: 2', () => {
+      const js = source`
+        import { select } from 'messages'
+        var bar = 'BAR'
+        var baz = select(bar, { one: bar, other: 'N' }, { minimumFractionDigits: 2 })`
+      return testParse(js, {
+        baz: source`
+          { NUMBER($bar, minimumFractionDigits: 2) ->
+             [one] {$bar}
+            *[other] N
+          }`
+      })
+    })
+
+    test('type: "ordinal"', () => {
+      const js = source`
+        import { select } from 'messages'
+        var bar = 'BAR'
+        var baz = select(bar, { one: bar, other: 'N' }, { type: 'ordinal' })`
+      return testParse(js, {
+        baz: source`
+          { NUMBER($bar, type: "ordinal") ->
+             [one] {$bar}
+            *[other] N
+          }`
+      })
+    })
+
+    test('multiple', () => {
+      const js = source`
+        import { select } from 'messages'
+        var bar = 'BAR'
+        var baz = select(bar, { one: bar, other: 'N' }, { type: 'ordinal', minimumFractionDigits: 2 })`
+      return testParse(js, {
+        baz: source`
+          { NUMBER($bar, minimumFractionDigits: 2, type: "ordinal") ->
+             [one] {$bar}
+            *[other] N
+          }`
+      })
+    })
   })
 })
 

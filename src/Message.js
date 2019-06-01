@@ -39,22 +39,18 @@ module.exports = class Message {
   constructor(plugin, path) {
     this.plugin = plugin
     this.path = path
-    this.options = null
+    this.options = new Map()
   }
 
   get key() {
     if (this._key) return this._key
-    if (t.isObjectExpression(this.options)) {
-      const { properties } = this.options.node
-      for (let i = 0; i < properties.length; ++i) {
-        if (properties[i].key.name !== 'key') continue
-        const keyPath = this.options.get(`properties.${i}.value`)
-        if (!keyPath.isStringLiteral)
-          throw keyPath.buildCodeFrameError(
-            'If set, the key option must be a literal string'
-          )
-        return (this._key = keyPath.node.value)
+    if (this.options.has('key')) {
+      const key = this.options.get('key')
+      if (typeof key !== 'string') {
+        const msg = 'If set, the key option must be a literal string'
+        throw this.path.buildCodeFrameError(msg)
       }
+      return (this._key = key)
     }
     const srcKey =
       getSourceTarget(this.path.parentPath) || this.compileMessage()
