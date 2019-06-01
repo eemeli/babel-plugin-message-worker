@@ -11,19 +11,18 @@ module.exports = class SelectMessage extends Message {
     return msg
   }
 
-  constructor(plugin, path, name = 'select') {
-    super(plugin, path, name)
-    this.name = name
+  constructor(plugin, path) {
+    super(plugin, path)
 
     this.variable = path.get('arguments.0')
     if (this.variable.isLiteral()) {
-      const msg = `Expected a non-literal value as the first ${name}() argument`
+      const msg = `Expected a non-literal value as the first select() argument`
       throw this.variable.buildCodeFrameError(msg)
     }
 
     this.arg = path.get('arguments.1')
     if (!this.arg.isObjectExpression()) {
-      const msg = `Expected a literal object as the second ${name}() argument`
+      const msg = `Expected a literal object as the second select() argument`
       throw this.arg.buildCodeFrameError(msg)
     }
 
@@ -39,7 +38,7 @@ module.exports = class SelectMessage extends Message {
 
   parseOptions(opt) {
     if (!opt.isObjectExpression()) {
-      const msg = `Expected a literal object as the third ${name}() argument`
+      const msg = `Expected a literal object as the third select() argument`
       throw opt.buildCodeFrameError(msg)
     }
     for (const { key, type, value } of opt.node.properties) {

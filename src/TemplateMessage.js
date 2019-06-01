@@ -18,7 +18,6 @@ module.exports = class TemplateMessage extends Message {
     const ctx = {
       allNamedVars: false,
       indent,
-      inPlural: false,
       path: this.path,
       vars: vars || this.vars,
       wrapVar: name => `{$${name}}`

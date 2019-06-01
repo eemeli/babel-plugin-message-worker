@@ -84,19 +84,19 @@ describe('select', () => {
   })
 })
 
-test('plural in select in object', () => {
+test('select in select in object', () => {
   const js = source`
-    import { plural, select } from 'messages'
+    import { select } from 'messages'
     var foo = 'FOO', bar = 'BAR'
     var baz = {
       zzz: select(foo, {
       bar: 'U',
-      foo: 'X' + plural(bar, {
+      foo: 'X' + select(bar, {
         one: bar,
         other: 'N'
       })
     })}
-    var baz_zzz = plural(foo, { other: 'Z' })`
+    var baz_zzz = select(foo, { other: 'Z' })`
   return testParse(js, {
     baz_zzz_0: source`
       { $foo ->
@@ -114,13 +114,13 @@ test('plural in select in object', () => {
   })
 })
 
-test('plural in template literal in select', () => {
+test('select in template literal in select', () => {
   const js = source`
-    import { plural, select } from 'messages'
+    import { select } from 'messages'
     var foo = 'FOO', bar = 'BAR'
     var baz = select(foo, {
       bar: 'U',
-      foo: \`X\${plural(bar, {
+      foo: \`X\${select(bar, {
         one: bar,
         other: 'N'
       })}Y\`

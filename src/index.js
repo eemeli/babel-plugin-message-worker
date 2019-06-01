@@ -1,7 +1,6 @@
 const fs = require('fs')
 const path = require('path')
 const YAML = require('yaml')
-const PluralMessage = require('./PluralMessage')
 const SelectMessage = require('./SelectMessage')
 const TemplateMessage = require('./TemplateMessage')
 
@@ -76,8 +75,6 @@ module.exports = function(babel) {
         this.opts.imports.messages = {
           default: msg,
           msg,
-          ordinal: { CallExpression: PluralMessage.parseOrdinal },
-          plural: { CallExpression: PluralMessage.parsePlural },
           select: { CallExpression: SelectMessage.parse }
         }
       }
