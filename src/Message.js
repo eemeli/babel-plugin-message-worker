@@ -39,12 +39,12 @@ module.exports = class Message {
   constructor(plugin, path) {
     this.plugin = plugin
     this.path = path
-    this.options = new Map()
+    this.options = null
   }
 
   get key() {
     if (this._key) return this._key
-    if (this.options.has('key')) {
+    if (this.options && this.options.has('key')) {
       const key = this.options.get('key')
       if (typeof key !== 'string') {
         const msg = 'If set, the key option must be a literal string'

@@ -2,11 +2,17 @@ const t = require('babel-types')
 const compileMessagePart = require('./compileMessagePart')
 const Message = require('./Message')
 
-const MAX_LINE_LENGTH = 60
-
 module.exports = class SelectMessage extends Message {
   static parse(plugin, path) {
     const msg = new SelectMessage(plugin, path)
+
+    const casePath = path.get('arguments.0')
+    msg.cases = msg.parseCases(casePath)
+
+    const optPath = path.get('arguments.1')
+    if (optPath) msg.options = msg.parseOptions(optPath)
+
+    msg.argument = msg.parseArgument(msg.path.parentPath)
     msg.vars = msg.parseVars()
     return msg
   }
@@ -14,49 +20,74 @@ module.exports = class SelectMessage extends Message {
   constructor(plugin, path) {
     super(plugin, path)
 
-    this.variable = path.get('arguments.0')
-    if (this.variable.isLiteral()) {
-      const msg = `Expected a non-literal value as the first select() argument`
-      throw this.variable.buildCodeFrameError(msg)
-    }
+    /** @type {{ key: string, msg: (string|Message|NodePath)[] }[]} */
+    this.cases = null
 
-    this.arg = path.get('arguments.1')
-    if (!this.arg.isObjectExpression()) {
-      const msg = `Expected a literal object as the second select() argument`
-      throw this.arg.buildCodeFrameError(msg)
-    }
+    this.vars = null
+  }
 
-    const opt = path.get('arguments.2')
-    if (opt) this.parseOptions(opt)
+  parseCases(path) {
+    path.assertObjectExpression()
+    const cases = []
+    const propCount = path.node.properties.length
+    for (let i = 0; i < propCount; ++i) {
+      const propPath = path.get(`properties.${i}`)
+      propPath.assertObjectProperty()
+      const keyPath = propPath.get('key')
+      const key = keyPath.isIdentifier()
+        ? keyPath.node.name
+        : keyPath.isLiteral()
+        ? String(keyPath.node.value)
+        : null
+      if (key == null)
+        throw keyPath.buildCodeFrameError(
+          `Keys of type ${keyPath.node.type} are not supported here`
+        )
+      const msg = this.visit(propPath.get('value'))
+      cases.push({ key, msg })
+    }
+    return cases
+  }
+
+  parseOptions(path) {
+    path.assertObjectExpression()
+    const options = new Map()
+    const propCount = path.node.properties.length
+    for (let i = 0; i < propCount; ++i) {
+      const propPath = path.get(`properties.${i}`)
+      propPath.assertObjectProperty()
+      const { key } = propPath.node
+      const keyName = t.isIdentifier(key) ? key.name : String(key.value)
+      const valuePath = propPath.get('value')
+      valuePath.assertLiteral()
+      options.set(keyName, valuePath.node.value)
+    }
+    return options
+  }
+
+  parseArgument(path) {
+    path.assertVariableDeclarator()
+    const idPath = path.get('id')
+    idPath.assertIdentifier()
+    const binding = path.scope.getBinding(idPath.node.name)
+    for (const refPath of binding.referencePaths) {
+      if (t.isCallExpression(refPath.parent)) {
+        const argPath = refPath.parentPath.get('arguments.0')
+        if (argPath && argPath.isIdentifier()) return argPath
+      }
+    }
+    throw path.buildCodeFrameError('Argument not found for select expression')
   }
 
   parseVars() {
-    this.vars = Message.accumulateVars([this.variable])
-    for (const { msg } of this.cases) Message.accumulateVars(msg, this.vars)
-    return this.vars
+    const vars = Message.accumulateVars([this.argument])
+    for (const { msg } of this.cases) Message.accumulateVars(msg, vars)
+    return vars
   }
 
-  parseOptions(opt) {
-    if (!opt.isObjectExpression()) {
-      const msg = `Expected a literal object as the third select() argument`
-      throw opt.buildCodeFrameError(msg)
-    }
-    for (const { key, type, value } of opt.node.properties) {
-      if (type !== 'ObjectProperty') {
-        const msg = `The options parameter does not support ${type}`
-        throw opt.buildCodeFrameError(msg)
-      }
-      const keyName = t.isIdentifier(key) ? key.name : String(key.value)
-      if (!t.isLiteral(value)) {
-        const msg = `Expected literal option value, but found ${value.type}`
-        throw opt.buildCodeFrameError(msg)
-      }
-      this.options.set(keyName, value.value)
-    }
-  }
-
-  get numberOptions() {
+  getNumberOptions() {
     if (this._numOpt === undefined) {
+      if (!this.options) return (this._numOpt = '')
       this._numOpt = [
         'minimumIntegerDigits',
         'minimumFractionDigits',
@@ -72,50 +103,25 @@ module.exports = class SelectMessage extends Message {
     return this._numOpt
   }
 
-  /** @type {{ key: string, msg: (string|Message|NodePath)[] }[]} */
-  get cases() {
-    if (!this._cases)
-      this._cases = this.arg.node.properties.map(({ type }, i) => {
-        if (type !== 'ObjectProperty')
-          throw this.arg.buildCodeFrameError(
-            `The cases parameter does not support ${type}`
-          )
-        const keyPath = this.arg.get(`properties.${i}.key`)
-        const key = keyPath.isIdentifier()
-          ? keyPath.node.name
-          : keyPath.isLiteral()
-          ? String(keyPath.node.value)
-          : null
-        if (key == null)
-          throw keyPath.buildCodeFrameError(
-            `Keys of type ${keyPath.node.type} are not supported here`
-          )
-        //console.log('CASES PLUGIN', this.plugin)
-        const msg = this.visit(this.arg.get(`properties.${i}.value`))
-        return { key, msg }
-      })
-    return this._cases
-  }
-
   compileMessage(vars, indent = '') {
     const ctx = {
       allNamedVars: false,
       indent: `${indent}     `,
-      path: this.arg,
+      path: this.path,
       vars: vars || this.vars,
       wrapVar: name => `{$${name}}`
     }
     let varName
     if (ctx.vars.every(v => typeof v === 'string')) {
       ctx.allNamedVars = true
-      varName = this.variable.node.name
+      varName = this.argument.node.name
     } else {
-      const q = this.variable.isIdentifier()
-        ? this.variable.node.name
-        : this.variable
+      const q = this.argument.isIdentifier()
+        ? this.argument.node.name
+        : this.argument
       varName = String(ctx.vars.indexOf(q))
     }
-    const numOpt = this.numberOptions
+    const numOpt = this.getNumberOptions()
     const selArg = numOpt ? `NUMBER($${varName}, ${numOpt})` : `$${varName}`
 
     const body = [`{ ${selArg} ->`]
