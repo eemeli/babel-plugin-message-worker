@@ -24,12 +24,12 @@
     "babel-core": "^6.26.3",
     "common-tags": "^1.8.0",
     "jest": "^24.8.0",
-    "prettier": "^1.17.0",
+    "prettier": "^1.17.1",
     "tmp": "^0.1.0"
   },
   "dependencies": {
     "babel-types": "^6.26.0",
-    "messageformat": "^2.2.0",
-    "yaml": "^1.5.1"
+    "messageformat": "^2.2.1",
+    "yaml": "^1.6.0"
   }
 }
